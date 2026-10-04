@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Japan day agent</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root {
+      --bg: #efe8dc;
+      --ink: #1c1915;
+      --muted: #6d675e;
+      --card: #fffdf8;
+      --line: #e3d9ca;
+      --green: #0d6b50;
+      --green-ink: #083d2e;
+      --warn: #8a4b12;
+      --shadow: 0 10px 30px rgba(60, 40, 10, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font: 16px/1.45 "Avenir Next", "Hiragino Sans", "Segoe UI", sans-serif;
+    }
+    .app {
+      width: min(1080px, 100%);
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+      display: grid;
+      gap: 16px;
+    }
+    @media (min-width: 900px) {
+      .app { grid-template-columns: 340px 1fr; align-items: start; padding: 28px; }
+      .panel { position: sticky; top: 16px; }
+    }
+    .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    h1 { font-size: 28px; line-height: 1.1; margin: 0 0 4px; letter-spacing: -0.03em; }
+    .lede { color: var(--muted); margin: 0 0 14px; }
+    .panel, .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+    }
+    .panel { padding: 16px; }
+    label { display: block; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+    .cities, .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    button, input, select { font: inherit; color: inherit; }
+    .cities button, .chips button {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 12px;
+      min-height: 40px;
+    }
+    .cities button.on, .chips button.on { background: var(--green); color: white; border-color: var(--green); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    input[type="number"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 44px;
+    }
+    .go {
+      width: 100%;
+      margin-top: 16px;
+      border: 0;
+      border-radius: 14px;
+      min-height: 48px;
+      background: var(--green-ink);
+      color: white;
+      font-weight: 600;
+    }
+    .go:disabled { opacity: 0.6; }
+    .check { display: flex; gap: 8px; align-items: center; margin-top: 12px; text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--ink); }
+    .note { color: var(--muted); font-size: 13px; margin: 10px 0 0; }
+    #map { height: 240px; border-radius: 18px; border: 1px solid var(--line); }
+    .summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .pill { background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; font-size: 13px; }
+    .warn { color: var(--warn); background: #fff6ec; border-color: #f0d7bf; }
+    .day { padding: 14px 14px 6px; margin-top: 12px; }
+    .day h2 { margin: 0 0 8px; font-size: 18px; }
+    .stop { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); }
+    .time { font-variant-numeric: tabular-nums; color: var(--green-ink); font-weight: 600; }
+    .stop h3 { margin: 0; font-size: 16px; }
+    .meta, .why { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+    details { margin-top: 12px; }
+    summary { cursor: pointer; font-weight: 600; }
+    .log { list-style: none; padding: 8px 0 0; margin: 0; }
+      .log li { padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+    .thought h3 { font-size: 13px; margin: 12px 0 4px; color: var(--muted); }
+    .thought p { margin: 0 0 8px; white-space: pre-wrap; }
+    textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 72px;
+      resize: vertical;
+    }
+    .empty { padding: 18px; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <form class="panel" id="form">
+      <div class="top">
+        <h1 id="title">Japan day agent</h1>
+        <div class="cities" id="langs">
+          <button type="button" data-lang="en" class="on">EN</button>
+          <button type="button" data-lang="zh">中文</button>
+        </div>
+      </div>
+      <p class="lede" id="lede">One city. The agent keeps a place only when the rating, the ride, the hours, and the budget all pass.</p>
+      <label id="label-city">City</label>
+      <div class="cities" id="cities">
+        <button type="button" data-city="tokyo" class="on">Tokyo</button>
+        <button type="button" data-city="kyoto">Kyoto</button>
+        <button type="button" data-city="osaka">Osaka</button>
+      </div>
+      <div class="grid">
+        <div><label for="days" id="label-days">Days</label><input id="days" type="number" min="1" max="3" value="2" /></div>
+        <div><label for="party" id="label-party">People</label><input id="party" type="number" min="1" max="8" value="2" /></div>
+        <div><label for="budget" id="label-budget">Budget, yen</label><input id="budget" type="number" min="0" step="1000" value="40000" /></div>
+        <div><label for="walk" id="label-walk">Max walk, min</label><input id="walk" type="number" min="5" max="60" value="12" /></div>
+        <div><label for="ride" id="label-ride">Max bus or train, min</label><input id="ride" type="number" min="10" max="90" value="40" /></div>
+        <div><label for="google" id="label-google">Min Google</label><input id="google" type="number" min="0" max="5" step="0.1" value="4.0" /></div>
+        <div><label for="tabelog" id="label-tabelog">Min Tabelog</label><input id="tabelog" type="number" min="0" max="5" step="0.05" value="3.3" /></div>
+      </div>
+      <label id="label-transport">Getting around</label>
+      <div class="cities" id="modes">
+        <button type="button" data-mode="transit" class="on">Walk, bus, train</button>
+        <button type="button" data-mode="walk">Walk only</button>
+      </div>
+      <label id="label-interests">Interests</label>
+      <div class="chips" id="chips">
+        <button type="button" data-tag="temple">Temples</button>
+        <button type="button" data-tag="food">Food streets</button>
+        <button type="button" data-tag="museum">Museums</button>
+        <button type="button" data-tag="viewpoint">Views</button>
+        <button type="button" data-tag="pop">Pop culture</button>
+        <button type="button" data-tag="market">Markets</button>
+        <button type="button" data-tag="theme-park">Theme park</button>
+      </div>
+      <label id="label-prompt" for="prompt">Note for the model</label>
+      <textarea id="prompt" maxlength="500" placeholder="More dessert, or skip USJ"></textarea>
+      <label class="check" id="label-llm"><input id="llm" type="checkbox" /> <span id="llm-text">Let a model draft the route, then check it</span></label>
+      <button class="go" id="go" type="submit">Plan the days</button>
+      <p class="note" id="form-note">Ratings, ride times, and fares are a frozen sample, not a live timetable. A model is used only if this box is on and an API key is set.</p>
+    </form>
+    <section>
+      <div id="map"></div>
+      <div id="out"></div>
+    </section>
+  </main>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const COPY = {
+      en: {
+        title: "Japan day agent",
+        lede: "One city. The agent keeps a place only when the rating, the ride, the hours, and the budget all pass.",
+        city: "City", days: "Days", party: "People", budget: "Budget, yen", walk: "Max walk, min",
+        ride: "Max bus or train, min", google: "Min Google", tabelog: "Min Tabelog",
+        transport: "Getting around", interests: "Interests",
+        modes: { transit: "Walk, bus, train", walk: "Walk only" },
+        tags: { temple: "Temples", food: "Food streets", museum: "Museums", viewpoint: "Views", pop: "Pop culture", market: "Markets", "theme-park": "Theme park" },
+        llm: "Let a model draft the route, then check it",
+        prompt: "Note for the model",
+        promptHint: "More dessert, or skip USJ",
+        go: "Plan the days", busy: "Planning…",
+        note: "Ratings and ride times are a sample. A note is sent to the model with the place list, and only if an API key is set.",
+        of: " of ", day: " day", days: " days", repair: " repair", repairs: " repairs",
+        dayTitle: "Day", and: " and ", dayTotal: "Day total ",
+        modesShort: { walk: "walk", bus: "bus", train: "train" }, min: " min ",
+        empty: "No day fit those limits. Raise the budget or the ride time, or lower a rating floor.",
+        how: "How the agent decided",
+        before: "Before the note (rules route)",
+        after: "After the note (checked model route)",
+        change: "What changed",
+        dropped: "Dropped",
+        added: "Added",
+        because: "Why the model changed it",
+        none: "none",
+        actions: { add: "add", reject: "reject", repair: "repair", skip_slot: "skip", note: "note" }
+      },
+      zh: {
+        title: "日本一日行程",
+        lede: "一個城市。評分、車程、營業時間同預算都過關，先會留下一個地方。",
+        city: "城市", days: "日數", party: "人數", budget: "預算（日圓）", walk: "最長步行（分鐘）",
+        ride: "巴士或電車最長（分鐘）", google: "最低 Google", tabelog: "最低 Tabelog",
+        transport: "點樣去", interests: "興趣",
+        modes: { transit: "步行、巴士、電車", walk: "只係行路" },
+        tags: { temple: "寺廟", food: "食街", museum: "博物館", viewpoint: "景色", pop: "流行文化", market: "市場", "theme-park": "主題樂園" },
+        llm: "讓模型先起草路線，再檢查",
+        prompt: "給模型的話",
+        promptHint: "想多些甜品，或者唔去環球影城",
+        go: "排行程", busy: "排緊…",
+        note: "評分同車程都係樣本。有文字就會連地點清單一齊送去模型，但要設咗 API key 先會用到。",
+        of: " / ", day: " 日", days: " 日", repair: " 次修改", repairs: " 次修改",
+        dayTitle: "第", and: "同", dayTotal: "當日合計 ",
+        modesShort: { walk: "步行", bus: "巴士", train: "電車" }, min: " 分鐘 ",
+        empty: "呢啲限制排唔到行程。提高預算或車程，或者降低評分下限。",
+        how: "點樣決定",
+        before: "原先（規則行程，未用你的話）",
+        after: "而家（模型跟你的話改，檢查通過）",
+        change: "轉變（程式對比兩個行程）",
+        dropped: "拿走",
+        added: "改去",
+        because: "模型點解",
+        none: "冇",
+        actions: { add: "加入", reject: "唔要", repair: "修改", skip_slot: "跳過", note: "備註" }
+      }
+    };
+    const cities = document.getElementById("cities");
+    const chips = document.getElementById("chips");
+    const modes = document.getElementById("modes");
+    let city = "tokyo";
+    let transport = "transit";
+    let lang = localStorage.getItem("lang") === "zh" ? "zh" : "en";
+    let last = null;
+    const interests = new Set();
+    cities.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      city = button.dataset.city;
+      for (const item of cities.querySelectorAll("button")) item.classList.toggle("on", item === button);
+    });
+    modes.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      transport = button.dataset.mode;
+      for (const item of modes.querySelectorAll("button")) item.classList.toggle("on", item === button);
+    });
+    document.getElementById("langs").addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      lang = button.dataset.lang;
+      localStorage.setItem("lang", lang);
+      applyLang();
+      if (last) {
+        render(last);
+        document.getElementById("form").requestSubmit();
+      }
+    });
+    chips.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      const tag = button.dataset.tag;
+      if (interests.has(tag)) interests.delete(tag); else interests.add(tag);
+      button.classList.toggle("on");
+    });
+
+    let map, layer;
+    function ensureMap() {
+      if (map || typeof L === "undefined") return;
+      map = L.map("map", { scrollWheelZoom: false }).setView([35.68, 139.76], 11);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap"
+      }).addTo(map);
+      layer = L.layerGroup().addTo(map);
+    }
+    function clock(min) {
+      const h = Math.floor(min / 60) % 24;
+      const m = min % 60;
+      return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+    }
+    function t() { return COPY[lang]; }
+    function placeName(stop) { return lang === "zh" ? (stop.name_zh || stop.name) : stop.name; }
+    function placeArea(stop) { return lang === "zh" ? (stop.area_zh || stop.area) : stop.area; }
+    function placeNote(stop) { return lang === "zh" ? (stop.note_zh || stop.note) : stop.note; }
+    function applyLang() {
+      const copy = t();
+      document.documentElement.lang = lang === "zh" ? "zh-Hant" : "en";
+      document.title = copy.title;
+      document.getElementById("title").textContent = copy.title;
+      document.getElementById("lede").textContent = copy.lede;
+      document.getElementById("label-city").textContent = copy.city;
+      document.getElementById("label-days").textContent = copy.days;
+      document.getElementById("label-party").textContent = copy.party;
+      document.getElementById("label-budget").textContent = copy.budget;
+      document.getElementById("label-walk").textContent = copy.walk;
+      document.getElementById("label-ride").textContent = copy.ride;
+      document.getElementById("label-google").textContent = copy.google;
+      document.getElementById("label-tabelog").textContent = copy.tabelog;
+      document.getElementById("label-transport").textContent = copy.transport;
+      document.getElementById("label-interests").textContent = copy.interests;
+      document.getElementById("llm-text").textContent = copy.llm;
+      document.getElementById("label-prompt").textContent = copy.prompt;
+      document.getElementById("prompt").placeholder = copy.promptHint;
+      document.getElementById("go").textContent = copy.go;
+      document.getElementById("form-note").textContent = copy.note;
+      for (const button of modes.querySelectorAll("button")) button.textContent = copy.modes[button.dataset.mode];
+      for (const button of chips.querySelectorAll("button")) button.textContent = copy.tags[button.dataset.tag];
+      for (const button of document.getElementById("langs").querySelectorAll("button")) {
+        button.classList.toggle("on", button.dataset.lang === lang);
+      }
+    }
+    function yen(n) { return "¥" + Number(n).toLocaleString("en-US"); }
+    function draw(result) {
+      ensureMap();
+      if (!map) return;
+      layer.clearLayers();
+      const points = [];
+      const colors = ["#0d6b50", "#8a4b12", "#1d4e89"];
+      result.days.forEach((day, index) => {
+        const latlngs = day.stops.map((stop) => [stop.lat, stop.lon]);
+        points.push(...latlngs);
+        if (latlngs.length) {
+          L.polyline(latlngs, { color: colors[index % colors.length], weight: 4 }).addTo(layer);
+        }
+        day.stops.forEach((stop) => {
+          L.circleMarker([stop.lat, stop.lon], {
+            radius: 7,
+            color: "#fff",
+            weight: 2,
+            fillColor: colors[index % colors.length],
+            fillOpacity: 1
+          }).bindTooltip(placeName(stop)).addTo(layer);
+        });
+      });
+      if (points.length) map.fitBounds(points, { padding: [24, 24] });
+      setTimeout(() => map.invalidateSize(), 50);
+    }
+    function esc(text) {
+      return String(text).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+    }
+    function thoughtBlock(result) {
+      const thought = result.thought;
+      if (!thought) return "";
+      const copy = t();
+      const sep = lang === "zh" ? "、" : ", ";
+      const removed = thought.removed.length ? thought.removed.map(esc).join(sep) : copy.none;
+      const added = thought.added.length ? thought.added.map(esc).join(sep) : copy.none;
+      const why = thought.why ? `<h3>${copy.because}</h3><p>${esc(thought.why)}</p>` : "";
+      return `<div class="thought"><h3>${copy.before}</h3><p>${esc(thought.before)}</p><h3>${copy.after}</h3><p>${esc(thought.after)}</p><h3>${copy.change}</h3><p>${copy.dropped}：${removed}</p><p>${copy.added}：${added}</p>${why}</div>`;
+    }
+    function render(result) {
+      last = result;
+      const copy = t();
+      const out = document.getElementById("out");
+      const pills = [
+        yen(result.spent_yen) + copy.of + yen(result.budget_yen),
+        result.days.length + (result.days.length === 1 ? copy.day : copy.days),
+        result.repairs + (result.repairs === 1 ? copy.repair : copy.repairs),
+        result.mode.replaceAll("_", " ")
+      ];
+      const warnings = (result.warnings || []).map((text) => `<span class="pill warn">${text}</span>`).join("");
+      const days = result.days.map((day) => {
+        const areas = [...new Set(day.stops.map(placeArea))];
+        const area = areas.join(copy.and);
+        const heading = lang === "zh" ? `${copy.dayTitle}${day.day}日 · ${area}` : `Day ${day.day} · ${area}`;
+        const stops = day.stops.map((stop) => {
+          const bits = [placeArea(stop)];
+          if (stop.walk_min) {
+            bits.push(lang === "zh"
+              ? copy.modesShort[stop.mode] + " " + stop.walk_min + " 分鐘"
+              : stop.walk_min + " min " + copy.modesShort[stop.mode]);
+          }
+          if (stop.fare_yen) bits.push(yen(stop.fare_yen));
+          if (stop.google_rating != null) bits.push("Google " + stop.google_rating);
+          if (stop.tabelog != null) bits.push("Tabelog " + stop.tabelog);
+          bits.push(yen(stop.cost_yen));
+          return `<div class="stop"><div class="time">${clock(stop.start_min)}</div><div><h3>${placeName(stop)}</h3><p class="meta">${bits.join(" · ")}</p><p class="why">${placeNote(stop)}</p></div></div>`;
+        }).join("");
+        return `<article class="card day"><h2>${heading}</h2>${stops}<p class="meta">${copy.dayTotal}${yen(day.spent_yen)}</p></article>`;
+      }).join("");
+      const log = (result.trace || []).filter((step) => ["reject", "repair", "add", "skip_slot", "note"].includes(step.action)).map((step) => {
+        const shown = lang === "zh" && step.name_zh ? step.name_zh : step.name;
+        const name = shown ? shown + " — " : "";
+        return `<li><strong>${copy.actions[step.action] || step.action}</strong> ${name}${step.reason || ""}</li>`;
+      }).join("");
+      const empty = result.days.length ? days : `<div class="card empty"><p>${copy.empty}</p></div>`;
+      out.innerHTML = `<div class="summary">${pills.map((text) => `<span class="pill">${text}</span>`).join("")}${warnings}</div>${empty}<details class="card day" open><summary>${copy.how}</summary>${thoughtBlock(result)}<ul class="log">${log}</ul><p class="note">${result.disclaimer}</p></details>`;
+      draw(result);
+    }
+    document.getElementById("prompt").addEventListener("input", () => {
+      if (document.getElementById("prompt").value.trim()) document.getElementById("llm").checked = true;
+    });
+    document.getElementById("form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = document.getElementById("go");
+      button.disabled = true;
+      button.textContent = t().busy;
+      try {
+        const response = await fetch("/api/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            city,
+            days: Number(document.getElementById("days").value),
+            party_size: Number(document.getElementById("party").value),
+            budget_yen: Number(document.getElementById("budget").value),
+            max_walk_min: Number(document.getElementById("walk").value),
+            max_transit_min: Number(document.getElementById("ride").value),
+            transport,
+            lang,
+            min_google: Number(document.getElementById("google").value),
+            min_tabelog: Number(document.getElementById("tabelog").value),
+            interests: [...interests],
+            prompt: document.getElementById("prompt").value.trim(),
+            use_llm: document.getElementById("llm").checked || document.getElementById("prompt").value.trim().length > 0
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Plan failed");
+        render(payload);
+      } catch (error) {
+        document.getElementById("out").innerHTML = `<div class="card empty"><p>${error.message}</p></div>`;
+      } finally {
+        button.disabled = false;
+        button.textContent = t().go;
+      }
+    });
+    applyLang();
+    ensureMap();
+    document.getElementById("form").requestSubmit();
+  </script>
+</body>
+</html>
